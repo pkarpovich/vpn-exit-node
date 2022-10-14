@@ -1,0 +1,17 @@
+{
+  "restartable": "rs",
+  "ignore": [
+    ".git",
+    "node_modules/**/node_modules",
+    "lib/**/*",
+    "db/**/*"
+  ],
+  "execMap": {
+    "ts": "ts-node"
+  },
+  "ext": "ts,js,json",
+  "ts-node": {
+    "transpileOnly": true,
+    "esm": true
+  }
+}
