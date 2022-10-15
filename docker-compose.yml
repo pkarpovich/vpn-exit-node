@@ -4,6 +4,7 @@ services:
     hostname: vpn-exit-node
     build:
       dockerfile: ./Dockerfile
-      args:
-        TAILSCALE_AUTHKEY: ${TAILSCALE_AUTHKEY}
+    environment:
+      - TAILSCALE_AUTHKEY=${TAILSCALE_AUTHKEY}
+      - HTTP_PORT=${HTTP_PORT}
     restart: unless-stopped
