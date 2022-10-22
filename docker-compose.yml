@@ -5,6 +5,7 @@ services:
     build:
       dockerfile: ./Dockerfile
     environment:
-      - TAILSCALE_AUTHKEY=${TAILSCALE_AUTHKEY}
+      - TAILSCALE_AUTH_KEY=${TAILSCALE_AUTH_KEY}
+      - TAILSCALE_HOSTNAME=${TAILSCALE_HOSTNAME}
       - HTTP_PORT=${HTTP_PORT}
     restart: unless-stopped

@@ -18,11 +18,13 @@ FROM tailscale/tailscale:stable
 ENV NODE_ENV production
 WORKDIR /usr/app
 
-RUN apk add dumb-init nodejs
+RUN apk add -U dumb-init nodejs
 
 COPY package.json ./
 COPY --from=builder /usr/app/dist ./
 COPY --from=builder /usr/app/node_modules ./node_modules
+COPY --from=builder /usr/app/scripts/entrypoint.sh /usr/bin/entrypoint.sh
+RUN chmod +x /usr/bin/entrypoint.sh
 
-ENTRYPOINT ["dumb-init"]
-CMD ["node", "/usr/app/index.js"]
+#ENTRYPOINT ["dumb-init"]
+CMD ["entrypoint.sh"]
