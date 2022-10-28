@@ -18,10 +18,11 @@ FROM tailscale/tailscale:stable
 ENV NODE_ENV production
 WORKDIR /usr/app
 
-RUN apk add -U dumb-init nodejs
+RUN apk update &&  apk add -U dumb-init nodejs openvpn
 
 COPY package.json ./
 COPY --from=builder /usr/app/dist ./
+COPY --from=builder /usr/app/vpn-files ./vpn-files
 COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/scripts/entrypoint.sh /usr/bin/entrypoint.sh
 RUN chmod +x /usr/bin/entrypoint.sh

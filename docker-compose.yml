@@ -9,3 +9,5 @@ services:
       - TAILSCALE_HOSTNAME=${TAILSCALE_HOSTNAME}
       - HTTP_PORT=${HTTP_PORT}
     restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
