@@ -8,6 +8,7 @@ services:
       - TAILSCALE_AUTH_KEY=${TAILSCALE_AUTH_KEY}
       - TAILSCALE_HOSTNAME=${TAILSCALE_HOSTNAME}
       - HTTP_PORT=${HTTP_PORT}
+      - VPN_FILES_PATH=${VPN_FILES_PATH}
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
