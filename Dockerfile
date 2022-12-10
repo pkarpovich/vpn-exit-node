@@ -27,5 +27,4 @@ COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/scripts/entrypoint.sh /usr/bin/entrypoint.sh
 RUN chmod +x /usr/bin/entrypoint.sh
 
-#ENTRYPOINT ["dumb-init"]
 CMD ["entrypoint.sh"]

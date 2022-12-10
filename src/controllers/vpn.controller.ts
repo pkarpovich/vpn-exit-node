@@ -36,7 +36,6 @@ export class VpnController implements BaseController {
         req: express.Request<StartVpnRequest>,
         resp: express.Response<OkResponse>,
     ): Promise<void> {
-        console.log(req.body);
         await this.vpnService.start(req.body.vpnFile);
 
         resp.json({ ok: true });
