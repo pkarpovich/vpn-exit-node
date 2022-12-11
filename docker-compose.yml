@@ -1,7 +1,7 @@
 services:
   vpn-exit-node:
-    container_name: vpn-exit-node
-    hostname: vpn-exit-node
+    container_name: ${TAILSCALE_HOSTNAME}
+    hostname: ${TAILSCALE_HOSTNAME}
     build:
       dockerfile: ./Dockerfile
     environment:
@@ -10,5 +10,10 @@ services:
       - HTTP_PORT=${HTTP_PORT}
       - VPN_FILES_PATH=${VPN_FILES_PATH}
     restart: unless-stopped
+    volumes:
+      - "/dev/net/tun:/dev/net/tun"
+    privileged: true
+    network_mode: "host"
     cap_add:
       - NET_ADMIN
+      - SYS_ADMIN
