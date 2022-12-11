@@ -20,7 +20,7 @@ export class HttpService {
     ) {
         this.app = express();
         this.app.use(helmet());
-        this.app.use(bodyParser.json({ type: 'application/*+json' }));
+        this.app.use(bodyParser.json());
 
         this.handleError = this.handleError.bind(this);
     }

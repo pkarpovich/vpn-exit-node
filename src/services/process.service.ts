@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process';
+import { exec, spawn } from 'node:child_process';
 
 export class ProcessService {
     static async exec(command: string): Promise<string> {
@@ -10,6 +10,16 @@ export class ProcessService {
                     resolve(stdout);
                 }
             });
+        });
+    }
+
+    static spawn(command: string, args: string[]): Promise<void> {
+        return new Promise((resolve, reject) => {
+            const child = spawn(command, args, {
+                detached: true,
+                stdio: 'ignore',
+            });
+            child.on('error', reject);
         });
     }
 }

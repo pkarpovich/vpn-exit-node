@@ -1,3 +1,4 @@
+node index.js &
 openvpn --config ./vpn-files/R4.ovpn &
 
 tailscaled \
