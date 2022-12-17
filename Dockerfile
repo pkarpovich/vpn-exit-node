@@ -23,7 +23,6 @@ RUN apk add --no-cache ca-certificates iptables iproute2 ip6tables
 
 COPY package.json ./
 COPY --from=builder /usr/app/dist ./
-COPY --from=builder /usr/app/vpn-files ./vpn-files
 COPY --from=builder /usr/app/node_modules ./node_modules
 COPY --from=builder /usr/app/scripts/entrypoint.sh /usr/bin/entrypoint.sh
 RUN chmod +x /usr/bin/entrypoint.sh

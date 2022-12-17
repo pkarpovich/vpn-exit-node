@@ -12,6 +12,7 @@ services:
     restart: unless-stopped
     volumes:
       - "/dev/net/tun:/dev/net/tun"
+      - "./vpn-files:/usr/app/vpn-files"
     ports:
       - ${HTTP_PORT}:${HTTP_PORT}
     privileged: true
