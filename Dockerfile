@@ -1,6 +1,6 @@
 FROM node:lts-bullseye-slim AS pnpm
 
-ARG PNPM_VERSION=7.18.1
+ARG PNPM_VERSION=7.18.2
 RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
 
 FROM pnpm AS builder
