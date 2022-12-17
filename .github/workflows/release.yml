@@ -1,0 +1,38 @@
+name: Release PR / Publish
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.OWNER_TOKEN }}
+      NPM_TOKEN: ${{ secrets.OWNER_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.OWNER_TOKEN }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: pnpm/action-setup@v2
+        with:
+          version: ${{ secrets.PNPM_VERSION }}
+
+      - name: setup Node.js 18.x
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          cache: 'pnpm'
+      - run: pnpm install --frozen-lockfile
+
+      - name: create release pull request / publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm run publish
+          version: pnpm run version
+          title: "chore: update versions"
+          commit: "chore: update versions"
