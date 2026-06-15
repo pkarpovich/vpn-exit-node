@@ -26,5 +26,20 @@ services:
       start_period: 30s
     restart: unless-stopped
 
+  socks5:
+    image: vimagick/microsocks:latest
+    profiles: ["socks"]
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    environment:
+      SOCKS_PORT: ${SOCKS_PORT:-1080}
+      SOCKS_USER: ${SOCKS_USER:-}
+      SOCKS_PASS: ${SOCKS_PASS:-}
+    volumes:
+      - ./scripts/socks-entrypoint.sh:/socks-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/socks-entrypoint.sh"]
+    restart: unless-stopped
+
 volumes:
   tailscale-state:

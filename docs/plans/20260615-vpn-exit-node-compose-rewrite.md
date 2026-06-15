@@ -104,14 +104,20 @@ devices.
       `docker-compose.yml` that referenced the deleted `Dockerfile`)
 
 ### Task 3: SOCKS5 service (mode 1, selective) + bind-to-tailnet entrypoint
-- [ ] add `socks5` service under compose profile `socks`, with
-      `network_mode: service:tailscale`
-- [ ] create `scripts/socks-entrypoint.sh`: wait for `tailscale ip -4`, then start
-      the SOCKS5 bound to that `100.x` address only (never `0.0.0.0`)
-- [ ] support optional `SOCKS_USER`/`SOCKS_PASS` from env
-- [ ] mount the entrypoint script and set it as the service `entrypoint`
-- [ ] `shellcheck scripts/socks-entrypoint.sh` is clean
-- [ ] `docker compose --profile socks config` parses cleanly
+- [x] add `socks5` service under compose profile `socks`, with
+      `network_mode: service:tailscale` (image `vimagick/microsocks` - chosen over
+      `serjs/go-socks5-proxy` because it has a shell for the entrypoint and a `-i`
+      bind-IP flag, which the latter lacks)
+- [x] create `scripts/socks-entrypoint.sh`: wait for the tailnet IPv4, then start
+      the SOCKS5 bound to that `100.x` address only (never `0.0.0.0`). The shared
+      `network_mode` exposes only the netns, not tailscaled's socket/binary, so the
+      script detects the IP via `ip -4 addr show tailscale0` (matches `100.x`)
+      rather than `tailscale ip -4`
+- [x] support optional `SOCKS_USER`/`SOCKS_PASS` from env
+- [x] mount the entrypoint script and set it as the service `entrypoint`
+- [x] `shellcheck scripts/socks-entrypoint.sh` is clean (run via
+      `koalaman/shellcheck`, exit 0)
+- [x] `docker compose --profile socks config` parses cleanly
 
 ### Task 4: VPN override - gluetun (mode 3, VPN egress)
 - [ ] create `compose.vpn.yml` override adding a `gluetun` service
