@@ -10,7 +10,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: shellcheck scripts
         run: shellcheck scripts/*.sh
 
@@ -23,7 +23,7 @@ jobs:
       TS_AUTHKEY: tskey-auth-placeholder
       VPN_SERVICE_PROVIDER: custom
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: base
         run: docker compose -f compose.yml config -q
       - name: socks profile
