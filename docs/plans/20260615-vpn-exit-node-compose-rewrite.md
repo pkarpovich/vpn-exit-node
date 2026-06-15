@@ -156,11 +156,15 @@ devices.
 - [x] note the multi-hop chaining non-goal
 
 ### Task 7: Replace obsolete CI
-- [ ] remove the Node Docker-image publish workflow(s) under `.github/workflows`
-      (they build the deleted Node image and would fail)
-- [ ] optionally add a minimal lint workflow: `hadolint` (if any Dockerfile),
+- [x] remove the Node Docker-image publish workflow(s) under `.github/workflows`
+      (removed both `publish-docker-image.yml` - built the deleted Node image -
+      and the pnpm/changesets `release.yml`; both would fail)
+- [x] optionally add a minimal lint workflow: `hadolint` (if any Dockerfile),
       `shellcheck` on `scripts/`, and `docker compose config` validation
-- [ ] update or remove `dependabot.yml` (npm ecosystem no longer applies)
+      (added `.github/workflows/lint.yml`; no Dockerfile remains so hadolint is
+      omitted; `shellcheck scripts/*.sh` + base/socks/vpn `compose config -q`)
+- [x] update or remove `dependabot.yml` (npm ecosystem no longer applies -
+      switched it to the `github-actions` ecosystem to track the new workflow)
 
 ### Task 8: Final sanity and docs consistency
 - [ ] `docker compose config` and `docker compose -f compose.yml -f compose.vpn.yml config`
