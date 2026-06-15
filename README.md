@@ -34,7 +34,24 @@ start, configured via `.env`. There is no runtime control API.
 
 ## Quick start
 
-1. Install Docker + Compose on the box.
+### Requirements
+- A 64-bit Linux host with **Docker + Compose v2**.
+- Kernel-mode Tailscale needs the TUN device and `NET_ADMIN`. The compose file
+  requests the capability; the device must exist on the host. Quick preflight:
+  ```bash
+  ls -l /dev/net/tun      # must exist
+  systemd-detect-virt     # expect kvm, or "none" for bare metal; NOT openvz/lxc
+  docker compose version  # v2.x
+  ```
+  Container-based virtualization (OpenVZ/LXC) usually has no `/dev/net/tun` and
+  cannot run the exit node.
+
+### Steps
+1. Get the code on the box and enter it:
+   ```bash
+   git clone https://github.com/pkarpovich/vpn-exit-node.git
+   cd vpn-exit-node
+   ```
 2. Copy and fill the environment file:
    ```bash
    cp .env.example .env
@@ -280,7 +297,12 @@ credentials). Run from another tailnet host unless noted.
   ```bash
   curl --socks5 <box-tailnet-ip>:1080 https://api.ipify.org
   ```
-  Expect the box's public IP (i.e. the box's own country).
+  Expect the box's public IP (i.e. the box's own country). No second device? Run
+  the check on the box itself, inside the proxy's network namespace:
+  ```bash
+  docker run --rm --network container:<TS_HOSTNAME> curlimages/curl:latest \
+    -s --socks5-hostname <box-tailnet-ip>:1080 https://api.ipify.org
+  ```
 
 - **Mode 2 (exit node, physical):** select the box as the exit node on a device
   (e.g. an Apple TV), then confirm the device's public IP shows the box's
