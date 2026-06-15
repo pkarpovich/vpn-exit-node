@@ -83,13 +83,13 @@ devices.
 ## Implementation Steps
 
 ### Task 1: Strip the obsolete Node/TS application
-- [ ] remove `src/`, `dist/`, `node_modules/`, `package.json`, `pnpm-lock.yaml`,
+- [x] remove `src/`, `dist/`, `node_modules/`, `package.json`, `pnpm-lock.yaml`,
       `tsconfig.json`, `nodemon.json`, `.eslintrc.json`, `.prettierrc`, `.nvmrc`
-- [ ] remove `.changeset/`, `CHANGELOG.md`, old `Dockerfile`, old
+- [x] remove `.changeset/`, `CHANGELOG.md`, old `Dockerfile`, old
       `scripts/entrypoint.sh`
-- [ ] rewrite `.gitignore` for a compose repo (ignore `.env`, drop node entries)
-- [ ] confirm `LICENSE` and `.editorconfig` are retained
-- [ ] `git status` shows only the intended deletions/changes
+- [x] rewrite `.gitignore` for a compose repo (ignore `.env`, drop node entries)
+- [x] confirm `LICENSE` and `.editorconfig` are retained
+- [x] `git status` shows only the intended deletions/changes
 
 ### Task 2: Base compose - Tailscale exit node (modes 1/2, physical egress)
 - [ ] create `compose.yml` with a `tailscale` service using `tailscale/tailscale`
