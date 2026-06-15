@@ -136,10 +136,12 @@ devices.
       (also verified base-only and base+vpn+`--profile socks` parse)
 
 ### Task 5: Environment template + Makefile convenience
-- [ ] create `.env.example` documenting every variable, grouped by mode
+- [x] create `.env.example` documenting every variable, grouped by mode
       (core Tailscale, SOCKS, gluetun/VPN)
-- [ ] create `Makefile` targets: `up-exit`, `up-socks`, `up-vpn`, `down`, `logs`
-- [ ] ensure `.env` is gitignored and only `.env.example` is committed
+- [x] create `Makefile` targets: `up-exit`, `up-socks`, `up-vpn`, `down`, `logs`
+- [x] ensure `.env` is gitignored and only `.env.example` is committed
+      (`.gitignore` already ignores `.env`/`.env.*` with `!.env.example`;
+      verified via `git check-ignore`)
 
 ### Task 6: README rewrite
 - [ ] rewrite `README.md`: what it is, the two axes / three modes, per-mode run
