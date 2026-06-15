@@ -92,14 +92,16 @@ devices.
 - [x] `git status` shows only the intended deletions/changes
 
 ### Task 2: Base compose - Tailscale exit node (modes 1/2, physical egress)
-- [ ] create `compose.yml` with a `tailscale` service using `tailscale/tailscale`
-- [ ] kernel mode: `TS_USERSPACE=false`, `cap_add: [NET_ADMIN]`, device
-      `/dev/net/tun`, sysctl `net.ipv4.ip_forward=1`
-- [ ] env-driven: `TS_AUTHKEY`, `TS_HOSTNAME`, `TS_EXTRA_ARGS=--advertise-exit-node`
-- [ ] persist Tailscale state via a named volume mounted at `/var/lib/tailscale`
-- [ ] `restart: unless-stopped` + healthcheck (`tailscale status`)
-- [ ] no `ports:` published (tailnet-only posture)
-- [ ] `docker compose config` parses cleanly
+- [x] create `compose.yml` with a `tailscale` service using `tailscale/tailscale`
+- [x] kernel mode: `TS_USERSPACE=false`, `cap_add: [NET_ADMIN]`, device
+      `/dev/net/tun`, sysctl `net.ipv4.ip_forward=1` (also `net.ipv6.conf.all.forwarding=1`
+      so the exit node forwards IPv6 too)
+- [x] env-driven: `TS_AUTHKEY`, `TS_HOSTNAME`, `TS_EXTRA_ARGS=--advertise-exit-node`
+- [x] persist Tailscale state via a named volume mounted at `/var/lib/tailscale`
+- [x] `restart: unless-stopped` + healthcheck (`tailscale status`)
+- [x] no `ports:` published (tailnet-only posture)
+- [x] `docker compose config` parses cleanly (also removed the stale Node-era
+      `docker-compose.yml` that referenced the deleted `Dockerfile`)
 
 ### Task 3: SOCKS5 service (mode 1, selective) + bind-to-tailnet entrypoint
 - [ ] add `socks5` service under compose profile `socks`, with

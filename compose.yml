@@ -1,0 +1,30 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: ${TS_HOSTNAME:-vpn-exit-node}
+    hostname: ${TS_HOSTNAME:-vpn-exit-node}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      TS_HOSTNAME: ${TS_HOSTNAME:-vpn-exit-node}
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-exit-node}
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv6.conf.all.forwarding: "1"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    healthcheck:
+      test: ["CMD", "tailscale", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
