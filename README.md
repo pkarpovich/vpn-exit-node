@@ -60,12 +60,13 @@ docker compose up -d                                   # mode 2
 docker compose --profile socks up -d                   # mode 1
 docker compose -f compose.yml -f compose.vpn.yml up -d  # mode 3
 
-docker compose down       # stop (make down)
-docker compose logs -f    # follow logs (make logs)
+docker compose down --remove-orphans   # stop (make down)
+docker compose logs -f                  # follow logs (make logs)
 ```
 
-To run mode 1 *and* mode 3 together (selective SOCKS over a VPN egress), add the
-profile to the VPN composition:
+To run mode 1 *and* mode 3 together (selective SOCKS over a VPN egress), use
+`make up-socks-vpn`, or the equivalent raw command - add the profile to the VPN
+composition:
 
 ```bash
 docker compose -f compose.yml -f compose.vpn.yml --profile socks up -d
@@ -89,6 +90,10 @@ Starts `tailscale` plus the `socks5` service (compose profile `socks`). The
 proxy shares tailscale's network namespace and is bound **only** to the box's
 `100.x` tailnet address - reachable from the tailnet, never from the public
 internet. Point an app at `socks5h://<box-tailnet-ip>:1080`.
+
+> Note: the SOCKS5 image (`vimagick/microsocks`) is amd64-only. On ARM hosts
+> (e.g. a Raspberry Pi or an ARM VPS) it runs under emulation if at all; modes 2
+> and 3 use multi-arch images and are unaffected.
 
 ### Mode 3 - exit node via VPN egress
 ```bash

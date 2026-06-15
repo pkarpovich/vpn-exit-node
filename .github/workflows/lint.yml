@@ -30,3 +30,5 @@ jobs:
         run: docker compose -f compose.yml --profile socks config -q
       - name: vpn override
         run: docker compose -f compose.yml -f compose.vpn.yml config -q
+      - name: vpn override + socks profile
+        run: docker compose -f compose.yml -f compose.vpn.yml --profile socks config -q
