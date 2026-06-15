@@ -144,16 +144,16 @@ devices.
       verified via `git check-ignore`)
 
 ### Task 6: README rewrite
-- [ ] rewrite `README.md`: what it is, the two axes / three modes, per-mode run
+- [x] rewrite `README.md`: what it is, the two axes / three modes, per-mode run
       commands, full env reference
-- [ ] document security posture (tailnet-only: no ports + `100.x` bind; optional
+- [x] document security posture (tailnet-only: no ports + `100.x` bind; optional
       host-firewall note as "optional hardening")
-- [ ] document the gluetun killswitch handling and Tailscale auth-key expiry
+- [x] document the gluetun killswitch handling and Tailscale auth-key expiry
       consideration (disable expiry or use an OAuth client for long-lived nodes)
-- [ ] include an optional `acl.hujson` example with `autoApprovers` for
+- [x] include an optional `acl.hujson` example with `autoApprovers` for
       `tag:exit-node` (zero-click fleet expansion) and an optional granular ACL
-- [ ] include the manual per-mode verification commands (see Post-Completion)
-- [ ] note the multi-hop chaining non-goal
+- [x] include the manual per-mode verification commands (see Post-Completion)
+- [x] note the multi-hop chaining non-goal
 
 ### Task 7: Replace obsolete CI
 - [ ] remove the Node Docker-image publish workflow(s) under `.github/workflows`
