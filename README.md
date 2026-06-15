@@ -329,6 +329,16 @@ credentials). Run from another tailnet host unless noted.
 - A runtime control API / UI - mode and country are set per deployment via
   `.env` + compose profiles/overrides.
 
+## History
+
+This is a ground-up rewrite. The previous version was a Node/TS HTTP controller
+that ran `tailscaled` and OpenVPN inside one privileged container; it is
+preserved at tag
+[`v1.0.2`](https://github.com/pkarpovich/vpn-exit-node/releases/tag/v1.0.2) and in
+the git history before the rewrite. The current appliance is pure docker-compose
+with no application code, so the old npm dependencies - and their Dependabot/Snyk
+update PRs - no longer apply.
+
 ## License
 
 See [LICENSE](LICENSE).
