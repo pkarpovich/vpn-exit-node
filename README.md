@@ -1,7 +1,7 @@
 # vpn-exit-node
 
 A small, reusable docker-compose appliance that turns any box (a VPS, a home
-server, a spare RU machine) into a controllable [Tailscale](https://tailscale.com)
+server, a Raspberry Pi) into a controllable [Tailscale](https://tailscale.com)
 exit node, optionally with a tailnet-only SOCKS5 proxy and optionally routed out
 through a VPN tunnel. No application code - just off-the-shelf images wired
 together.
@@ -18,8 +18,8 @@ It is built from two orthogonal axes:
   - **VPN** - via a [gluetun](https://github.com/qdm12/gluetun) tunnel to a
     target country (OpenVPN or WireGuard).
 
-A single box can combine roles - e.g. a RU box that is both a selective SOCKS5
-for one service and an on-demand RU exit node for geo-locked content.
+A single box can combine roles - e.g. a box that is both a selective SOCKS5
+for one service and an on-demand exit node for geo-locked content.
 
 ## The three modes
 
@@ -134,7 +134,7 @@ gitignored - never commit real keys or VPN credentials.
 |----------|---------|-------------|
 | `VPN_SERVICE_PROVIDER` | _(required for mode 3)_ | gluetun provider, e.g. `mullvad`, `nordvpn`, `protonvpn`, or `custom`. See the [gluetun wiki](https://github.com/qdm12/gluetun-wiki). |
 | `VPN_TYPE` | `openvpn` | Tunnel protocol: `openvpn` or `wireguard`. |
-| `SERVER_COUNTRIES` | _(empty)_ | Target egress country, provider-dependent, e.g. `Russia`. |
+| `SERVER_COUNTRIES` | _(empty)_ | Target egress country, provider-dependent, e.g. `Netherlands`. |
 | `OPENVPN_USER` | _(empty)_ | OpenVPN username (`VPN_TYPE=openvpn`). |
 | `OPENVPN_PASSWORD` | _(empty)_ | OpenVPN password (`VPN_TYPE=openvpn`). |
 | `OPENVPN_CUSTOM_CONFIG` | _(empty)_ | For `VPN_SERVICE_PROVIDER=custom`: path to a `.ovpn` mounted under `./vpn-files`, e.g. `/gluetun/custom/myconfig.ovpn`. |
@@ -280,7 +280,7 @@ credentials). Run from another tailnet host unless noted.
   ```bash
   curl --socks5 <box-tailnet-ip>:1080 https://api.ipify.org
   ```
-  Expect the box's public IP (e.g. a RU IP for a RU box).
+  Expect the box's public IP (i.e. the box's own country).
 
 - **Mode 2 (exit node, physical):** select the box as the exit node on a device
   (e.g. an Apple TV), then confirm the device's public IP shows the box's

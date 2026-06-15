@@ -11,14 +11,14 @@ expressed as two orthogonal axes (no custom application code):
 
 - **Consumer axis** - how a device uses the box:
   - exit node (full tunnel) - for Apple TV "teleport"
-  - SOCKS5 on the tailnet (selective) - for app-level routing (e.g. only Yandex
-    traffic from the playlist-synchronizer service)
+  - SOCKS5 on the tailnet (selective) - for app-level routing (e.g. only one
+    service's traffic)
 - **Egress axis** - where the box exits to the internet:
   - physical location of the box
   - VPN tunnel (gluetun -> target country)
 
-A single box can combine roles (e.g. a RU box that is both a selective SOCKS5
-for the sync service and an on-demand RU exit node for geo-locked content).
+A single box can combine roles (e.g. a box that is both a selective SOCKS5
+for one service and an on-demand exit node for geo-locked content).
 
 Goals preserved from the original project: a controllable, self-hostable exit
 node whose country is configurable, usable by Apple TV and other tailnet
@@ -208,17 +208,18 @@ devices.
 *Manual, requires real infrastructure - no checkboxes.*
 
 **Live verification per mode:**
-- Mode 1 (selective SOCKS, physical RU): from a tailnet host run
-  `curl --socks5 <box-tailnet-ip>:1080 https://api.ipify.org` -> expect a RU IP.
+- Mode 1 (selective SOCKS, physical): from a tailnet host run
+  `curl --socks5 <box-tailnet-ip>:1080 https://api.ipify.org` -> expect the box's
+  own country IP.
 - Mode 2 (exit node, physical): select the box as exit node on a device (e.g.
-  Apple TV) and confirm public IP shows the box country (covers the RU football
-  use case).
+  Apple TV) and confirm public IP shows the box country (covers the geo-locked
+  content use case).
 - Mode 3 (exit node via VPN): `docker compose exec gluetun wget -qO- ipinfo.io`
   -> expect the VPN country; then via the exit node a consumer shows the VPN
   country; stop the VPN container and confirm NO leak (killswitch holds).
 
 **Provisioning / external:**
-- Provision a RU VPS for the sync use case; populate `.env`; deploy mode 1 (+2).
+- Provision a VPS in the target country; populate `.env`; deploy mode 1 (+2).
 - For mode 3: supply gluetun provider credentials and a target-country config.
 - In the tailnet ACL: add `autoApprovers` for `tag:exit-node`; disable key expiry
   for these long-lived nodes (or wire an OAuth client).
@@ -227,5 +228,5 @@ devices.
 
 **Follow-up (separate repo):**
 - playlist-synchronizer: migrate Yandex source to the official
-  `api.music.yandex.net` API behind a `socks5h://` agent pointed at the RU box,
+  `api.music.yandex.net` API behind a `socks5h://` agent pointed at the exit-node box,
   add `YANDEX_MUSIC_TOKEN`, drop `yandex-short-api`, fix silent error handling.
