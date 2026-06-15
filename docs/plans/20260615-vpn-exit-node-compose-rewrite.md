@@ -167,11 +167,20 @@ devices.
       switched it to the `github-actions` ecosystem to track the new workflow)
 
 ### Task 8: Final sanity and docs consistency
-- [ ] `docker compose config` and `docker compose -f compose.yml -f compose.vpn.yml config`
-      both parse without errors
-- [ ] `docker compose --profile socks config` parses
-- [ ] every command shown in README matches actual files/targets
-- [ ] repo contains no leftover Node/TS artifacts
+- [x] `docker compose config` and `docker compose -f compose.yml -f compose.vpn.yml config`
+      both parse without errors (base, socks, vpn, and vpn+socks all parse with the
+      required vars set; the `${TS_AUTHKEY:?}` / `${VPN_SERVICE_PROVIDER:?}` guards
+      intentionally error on an unfilled `.env`, that is deployment safety not a
+      parse error)
+- [x] `docker compose --profile socks config` parses
+- [x] every command shown in README matches actual files/targets (all five `make`
+      targets exist; both compose files, `scripts/socks-entrypoint.sh`, and
+      `./vpn-files` exist; raw `docker compose` invocations reference real
+      services/profiles)
+- [x] repo contains no leftover Node/TS artifacts (removed stale Node-era
+      `.dockerignore` - no Dockerfile/build step remains and compose never reads it;
+      trimmed dead `[*.{ts,js}]`/`[lib/**.js]`/`[{package.json,.travis.yml}]`
+      sections from the kept `.editorconfig`)
 
 ## Technical Details
 - **Netns topology**: base mode keeps `tailscale` in its own netns; `socks5`
