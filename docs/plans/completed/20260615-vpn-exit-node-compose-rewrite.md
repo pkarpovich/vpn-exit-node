@@ -1,0 +1,232 @@
+# Rewrite vpn-exit-node into a Tailscale exit-node + SOCKS5 compose appliance
+
+## Overview
+Full rewrite of `vpn-exit-node` from a Node/TS application into a declarative
+docker-compose deployment template. The original 2022 design (custom Node
+controller hand-rolling `tailscaled` + OpenVPN in one privileged container) is
+obsolete and broken.
+
+The new appliance is reusable across servers and works in three modes,
+expressed as two orthogonal axes (no custom application code):
+
+- **Consumer axis** - how a device uses the box:
+  - exit node (full tunnel) - for Apple TV "teleport"
+  - SOCKS5 on the tailnet (selective) - for app-level routing (e.g. only one
+    service's traffic)
+- **Egress axis** - where the box exits to the internet:
+  - physical location of the box
+  - VPN tunnel (gluetun -> target country)
+
+A single box can combine roles (e.g. a box that is both a selective SOCKS5
+for one service and an on-demand exit node for geo-locked content).
+
+Goals preserved from the original project: a controllable, self-hostable exit
+node whose country is configurable, usable by Apple TV and other tailnet
+devices.
+
+## Context (from discovery)
+- Repo: `pkarpovich/vpn-exit-node`, currently Node/TS, clean on `main`.
+- Files/components to remove: `src/`, `dist/`, `node_modules/`, `package.json`,
+  `pnpm-lock.yaml`, `tsconfig.json`, `nodemon.json`, `.eslintrc.json`,
+  `.prettierrc`, `.nvmrc`, `.changeset/`, `CHANGELOG.md`, `Dockerfile`,
+  `scripts/entrypoint.sh` (old), the Node-oriented `.github` workflows.
+- Files to keep/rewrite: `LICENSE`, `.editorconfig`, `.gitignore` (update),
+  `README.md` (rewrite), `vpn-files/` (becomes gluetun config dir, optional).
+- Building blocks (all off-the-shelf images, no build step):
+  - `tailscale/tailscale` - tailnet membership + `--advertise-exit-node`
+  - `qmcgaw/gluetun` - optional VPN egress (OpenVPN/WireGuard) for mode 3
+  - a minimal SOCKS5 image (e.g. `serjs/go-socks5-proxy`) - optional, mode 1
+- Verified facts:
+  - exit node works in kernel mode (`TS_USERSPACE=false` + `NET_ADMIN` +
+    `/dev/net/tun` + `ip_forward=1`); kernel chosen for streaming bandwidth.
+  - gluetun + tailscale exit node is a known pattern via
+    `network_mode: service:gluetun`, with a return-traffic "black hole" gotcha.
+    It is a ROUTING problem (gluetun's low-numbered `ip rule`s push the tailnet
+    range out the tunnel ahead of Tailscale's priority-5270/table-52 rule), not a
+    firewall one - solved by a `route-fix` sidecar that injects a higher-priority
+    rule to table 52, never by disabling the killswitch.
+  - tsnet (embedded Tailscale in Go) cannot be an exit node - so exit-node
+    functionality must come from the official tailscaled image, not custom code.
+  - native multi-hop / chained exit nodes are NOT supported by Tailscale
+    (out of scope, see non-goals).
+
+## Non-goals
+- True multi-hop chaining (traffic through box B -> box A -> internet). Tailscale
+  does not support exit-node-through-exit-node. Documented as "possible later via
+  a stacked gluetun config" but not built.
+- playlist-synchronizer integration (separate effort in that repo).
+- A runtime control API / UI. Mode and country are set per deployment via
+  `.env` + compose profiles/overrides (static per-deploy).
+
+## Development Approach
+- **This is an infrastructure / compose + shell repo - there are no unit tests.**
+  Per decision during planning: author the artifacts, verify manually.
+- Automatable sanity only: `docker compose config` must parse for both the base
+  and the VPN-override composition; `shellcheck` clean on the entrypoint script.
+- Live functional verification (requires a real tailnet, a VPS, an Apple TV, and
+  VPN credentials) is manual and lives in Post-Completion - it cannot run inside
+  the ralphex Docker sandbox.
+- Make small, focused commits; complete each task fully before the next.
+- Security posture is a hard requirement, not optional: tailnet-only exposure
+  (no published ports + SOCKS bound to the `100.x` tailnet address).
+
+## Progress Tracking
+- Mark completed items with `[x]` immediately when done.
+- Add newly discovered tasks with the prefix.
+- Document blockers with a warning prefix.
+- Keep this plan in sync with actual work.
+
+## What Goes Where
+- **Implementation Steps** (`[ ]`): file authoring + static sanity checks the
+  agent can run locally.
+- **Post-Completion** (no checkboxes): live deployment and mode verification on
+  real boxes, tailnet ACL changes, credential provisioning.
+
+## Implementation Steps
+
+### Task 1: Strip the obsolete Node/TS application
+- [x] remove `src/`, `dist/`, `node_modules/`, `package.json`, `pnpm-lock.yaml`,
+      `tsconfig.json`, `nodemon.json`, `.eslintrc.json`, `.prettierrc`, `.nvmrc`
+- [x] remove `.changeset/`, `CHANGELOG.md`, old `Dockerfile`, old
+      `scripts/entrypoint.sh`
+- [x] rewrite `.gitignore` for a compose repo (ignore `.env`, drop node entries)
+- [x] confirm `LICENSE` and `.editorconfig` are retained
+- [x] `git status` shows only the intended deletions/changes
+
+### Task 2: Base compose - Tailscale exit node (modes 1/2, physical egress)
+- [x] create `compose.yml` with a `tailscale` service using `tailscale/tailscale`
+- [x] kernel mode: `TS_USERSPACE=false`, `cap_add: [NET_ADMIN]`, device
+      `/dev/net/tun`, sysctl `net.ipv4.ip_forward=1` (also `net.ipv6.conf.all.forwarding=1`
+      so the exit node forwards IPv6 too)
+- [x] env-driven: `TS_AUTHKEY`, `TS_HOSTNAME`, `TS_EXTRA_ARGS=--advertise-exit-node`
+- [x] persist Tailscale state via a named volume mounted at `/var/lib/tailscale`
+- [x] `restart: unless-stopped` + healthcheck (`tailscale status`)
+- [x] no `ports:` published (tailnet-only posture)
+- [x] `docker compose config` parses cleanly (also removed the stale Node-era
+      `docker-compose.yml` that referenced the deleted `Dockerfile`)
+
+### Task 3: SOCKS5 service (mode 1, selective) + bind-to-tailnet entrypoint
+- [x] add `socks5` service under compose profile `socks`, with
+      `network_mode: service:tailscale` (image `vimagick/microsocks` - chosen over
+      `serjs/go-socks5-proxy` because it has a shell for the entrypoint and a `-i`
+      bind-IP flag, which the latter lacks)
+- [x] create `scripts/socks-entrypoint.sh`: wait for the tailnet IPv4, then start
+      the SOCKS5 bound to that `100.x` address only (never `0.0.0.0`). The shared
+      `network_mode` exposes only the netns, not tailscaled's socket/binary, so the
+      script detects the IP via `ip -4 addr show tailscale0` (matches `100.x`)
+      rather than `tailscale ip -4`
+- [x] support optional `SOCKS_USER`/`SOCKS_PASS` from env
+- [x] mount the entrypoint script and set it as the service `entrypoint`
+- [x] `shellcheck scripts/socks-entrypoint.sh` is clean (run via
+      `koalaman/shellcheck`, exit 0)
+- [x] `docker compose --profile socks config` parses cleanly
+
+### Task 4: VPN override - gluetun (mode 3, VPN egress)
+- [x] create `compose.vpn.yml` override adding a `gluetun` service
+      (provider/country/credentials via env)
+- [x] repoint `tailscale` to `network_mode: service:gluetun` in the override
+      (uses Compose `!reset` to drop `hostname`/`sysctls`, which are mutually
+      exclusive with `network_mode: service:`; the IP-forwarding sysctls move to
+      gluetun, the netns owner)
+- [x] keep tailnet return traffic working WITHOUT disabling the killswitch
+      (`FIREWALL=on`). The fix is routing, not firewall: a `route-fix` sidecar in
+      gluetun's netns injects `ip rule add to 100.64.0.0/10 table 52 priority 90`
+      (and the IPv6 tailnet range) so Tailscale's table wins over gluetun's
+      priority-99/default rules. `FIREWALL_OUTBOUND_SUBNETS` defaults empty and is
+      reserved for LAN subnets only - putting the tailnet range there is an
+      OUTPUT-chain allowance that misses the FORWARD-chain return traffic and adds
+      the very priority-99 route the sidecar must override.
+- [x] `restart: unless-stopped` + rely on gluetun's built-in healthcheck (no
+      custom healthcheck defined for gluetun; `tailscale` waits on
+      `condition: service_healthy`)
+- [x] `docker compose -f compose.yml -f compose.vpn.yml config` parses cleanly
+      (also verified base-only and base+vpn+`--profile socks` parse)
+
+### Task 5: Environment template + Makefile convenience
+- [x] create `.env.example` documenting every variable, grouped by mode
+      (core Tailscale, SOCKS, gluetun/VPN)
+- [x] create `Makefile` targets: `up-exit`, `up-socks`, `up-vpn`, `down`, `logs`
+- [x] ensure `.env` is gitignored and only `.env.example` is committed
+      (`.gitignore` already ignores `.env`/`.env.*` with `!.env.example`;
+      verified via `git check-ignore`)
+
+### Task 6: README rewrite
+- [x] rewrite `README.md`: what it is, the two axes / three modes, per-mode run
+      commands, full env reference
+- [x] document security posture (tailnet-only: no ports + `100.x` bind; optional
+      host-firewall note as "optional hardening")
+- [x] document the gluetun killswitch handling and Tailscale auth-key expiry
+      consideration (disable expiry or use an OAuth client for long-lived nodes)
+- [x] include an optional `acl.hujson` example with `autoApprovers` for
+      `tag:exit-node` (zero-click fleet expansion) and an optional granular ACL
+- [x] include the manual per-mode verification commands (see Post-Completion)
+- [x] note the multi-hop chaining non-goal
+
+### Task 7: Replace obsolete CI
+- [x] remove the Node Docker-image publish workflow(s) under `.github/workflows`
+      (removed both `publish-docker-image.yml` - built the deleted Node image -
+      and the pnpm/changesets `release.yml`; both would fail)
+- [x] optionally add a minimal lint workflow: `hadolint` (if any Dockerfile),
+      `shellcheck` on `scripts/`, and `docker compose config` validation
+      (added `.github/workflows/lint.yml`; no Dockerfile remains so hadolint is
+      omitted; `shellcheck scripts/*.sh` + base/socks/vpn `compose config -q`)
+- [x] update or remove `dependabot.yml` (npm ecosystem no longer applies -
+      switched it to the `github-actions` ecosystem to track the new workflow)
+
+### Task 8: Final sanity and docs consistency
+- [x] `docker compose config` and `docker compose -f compose.yml -f compose.vpn.yml config`
+      both parse without errors (base, socks, vpn, and vpn+socks all parse with the
+      required vars set; the `${TS_AUTHKEY:?}` / `${VPN_SERVICE_PROVIDER:?}` guards
+      intentionally error on an unfilled `.env`, that is deployment safety not a
+      parse error)
+- [x] `docker compose --profile socks config` parses
+- [x] every command shown in README matches actual files/targets (all five `make`
+      targets exist; both compose files, `scripts/socks-entrypoint.sh`, and
+      `./vpn-files` exist; raw `docker compose` invocations reference real
+      services/profiles)
+- [x] repo contains no leftover Node/TS artifacts (removed stale Node-era
+      `.dockerignore` - no Dockerfile/build step remains and compose never reads it;
+      trimmed dead `[*.{ts,js}]`/`[lib/**.js]`/`[{package.json,.travis.yml}]`
+      sections from the kept `.editorconfig`)
+
+## Technical Details
+- **Netns topology**: base mode keeps `tailscale` in its own netns; `socks5`
+  joins it via `network_mode: service:tailscale`. VPN mode introduces `gluetun`
+  as the netns owner; `tailscale` joins gluetun, and `socks5` (if used) joins
+  the shared namespace transitively. A `route-fix` sidecar also joins gluetun's
+  netns purely to inject the tailnet return-path `ip rule` (see Task 4).
+- **Why bind SOCKS to `100.x`**: in the shared netns the interface set includes
+  the box's public interface; binding to the Tailscale address is what makes the
+  proxy reachable only from the tailnet.
+- **Profiles vs overrides**: SOCKS on/off is a compose `profile` (same netns,
+  additive). VPN egress changes `tailscale`'s `network_mode`, which a profile
+  cannot toggle - hence a separate `compose.vpn.yml` override file.
+- **Kernel mode rationale**: chosen over userspace for exit-node streaming
+  throughput (Apple TV). Requires `NET_ADMIN` + `/dev/net/tun` + `ip_forward`.
+
+## Post-Completion
+*Manual, requires real infrastructure - no checkboxes.*
+
+**Live verification per mode:**
+- Mode 1 (selective SOCKS, physical): from a tailnet host run
+  `curl --socks5 <box-tailnet-ip>:1080 https://api.ipify.org` -> expect the box's
+  own country IP.
+- Mode 2 (exit node, physical): select the box as exit node on a device (e.g.
+  Apple TV) and confirm public IP shows the box country (covers the geo-locked
+  content use case).
+- Mode 3 (exit node via VPN): `docker compose exec gluetun wget -qO- ipinfo.io`
+  -> expect the VPN country; then via the exit node a consumer shows the VPN
+  country; stop the VPN container and confirm NO leak (killswitch holds).
+
+**Provisioning / external:**
+- Provision a VPS in the target country; populate `.env`; deploy mode 1 (+2).
+- For mode 3: supply gluetun provider credentials and a target-country config.
+- In the tailnet ACL: add `autoApprovers` for `tag:exit-node`; disable key expiry
+  for these long-lived nodes (or wire an OAuth client).
+- Optional host hardening: firewall allowing inbound only Tailscale (UDP 41641)
+  + SSH.
+
+**Follow-up (separate repo):**
+- playlist-synchronizer: migrate Yandex source to the official
+  `api.music.yandex.net` API behind a `socks5h://` agent pointed at the exit-node box,
+  add `YANDEX_MUSIC_TOKEN`, drop `yandex-short-api`, fix silent error handling.

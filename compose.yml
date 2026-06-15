@@ -1,0 +1,48 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: ${TS_HOSTNAME:-vpn-exit-node}
+    hostname: ${TS_HOSTNAME:-vpn-exit-node}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?set TS_AUTHKEY in .env}
+      TS_HOSTNAME: ${TS_HOSTNAME:-vpn-exit-node}
+      TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-exit-node}
+      TS_USERSPACE: "false"
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTH_ONCE: "true"
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv6.conf.all.forwarding: "1"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    healthcheck:
+      test: ["CMD", "tailscale", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  socks5:
+    image: vimagick/microsocks:latest
+    profiles: ["socks"]
+    network_mode: service:tailscale
+    depends_on:
+      - tailscale
+    environment:
+      SOCKS_PORT: ${SOCKS_PORT:-1080}
+      SOCKS_USER: ${SOCKS_USER:-}
+      SOCKS_PASS: ${SOCKS_PASS:-}
+      TS_IFACE: ${TS_IFACE:-tailscale0}
+      SOCKS_WAIT_RETRIES: ${SOCKS_WAIT_RETRIES:-60}
+    volumes:
+      - ./scripts/socks-entrypoint.sh:/socks-entrypoint.sh:ro
+    entrypoint: ["/bin/sh", "/socks-entrypoint.sh"]
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
