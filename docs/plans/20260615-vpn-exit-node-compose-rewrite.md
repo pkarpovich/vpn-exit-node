@@ -120,13 +120,20 @@ devices.
 - [x] `docker compose --profile socks config` parses cleanly
 
 ### Task 4: VPN override - gluetun (mode 3, VPN egress)
-- [ ] create `compose.vpn.yml` override adding a `gluetun` service
+- [x] create `compose.vpn.yml` override adding a `gluetun` service
       (provider/country/credentials via env)
-- [ ] repoint `tailscale` to `network_mode: service:gluetun` in the override
-- [ ] configure gluetun firewall to allow tailnet return traffic WITHOUT
-      disabling the killswitch (avoid the black-hole gotcha; document the rule)
-- [ ] `restart: unless-stopped` + rely on gluetun's built-in healthcheck
-- [ ] `docker compose -f compose.yml -f compose.vpn.yml config` parses cleanly
+- [x] repoint `tailscale` to `network_mode: service:gluetun` in the override
+      (uses Compose `!reset` to drop `hostname`/`sysctls`, which are mutually
+      exclusive with `network_mode: service:`; the IP-forwarding sysctls move to
+      gluetun, the netns owner)
+- [x] configure gluetun firewall to allow tailnet return traffic WITHOUT
+      disabling the killswitch (`FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10` keeps
+      `FIREWALL=on`; documented inline in the override)
+- [x] `restart: unless-stopped` + rely on gluetun's built-in healthcheck (no
+      custom healthcheck defined for gluetun; `tailscale` waits on
+      `condition: service_healthy`)
+- [x] `docker compose -f compose.yml -f compose.vpn.yml config` parses cleanly
+      (also verified base-only and base+vpn+`--profile socks` parse)
 
 ### Task 5: Environment template + Makefile convenience
 - [ ] create `.env.example` documenting every variable, grouped by mode

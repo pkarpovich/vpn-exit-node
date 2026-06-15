@@ -1,0 +1,55 @@
+# VPN-egress override (mode 3): route the exit node out through a gluetun tunnel.
+#
+#   docker compose -f compose.yml -f compose.vpn.yml up -d
+#
+# gluetun becomes the network-namespace owner; tailscale joins it via
+# `network_mode: service:gluetun`, so all tailnet-forwarded traffic exits via the
+# VPN. gluetun's killswitch (FIREWALL, on by default) stays ON.
+services:
+  gluetun:
+    image: qmcgaw/gluetun:latest
+    container_name: ${TS_HOSTNAME:-vpn-exit-node}-gluetun
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    sysctls:
+      # gluetun owns the shared netns, so the exit-node forwarding sysctls live
+      # here (tailscale cannot set net.* sysctls on a namespace it only joins).
+      net.ipv4.ip_forward: "1"
+      net.ipv6.conf.all.forwarding: "1"
+    environment:
+      VPN_SERVICE_PROVIDER: ${VPN_SERVICE_PROVIDER:?set VPN_SERVICE_PROVIDER in .env}
+      VPN_TYPE: ${VPN_TYPE:-openvpn}
+      SERVER_COUNTRIES: ${SERVER_COUNTRIES:-}
+      # OpenVPN credentials (VPN_TYPE=openvpn)
+      OPENVPN_USER: ${OPENVPN_USER:-}
+      OPENVPN_PASSWORD: ${OPENVPN_PASSWORD:-}
+      OPENVPN_CUSTOM_CONFIG: ${OPENVPN_CUSTOM_CONFIG:-}
+      # WireGuard credentials (VPN_TYPE=wireguard)
+      WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
+      WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
+      # Killswitch stays ON. Without this the exit node black-holes: gluetun's
+      # firewall drops the return traffic to tailnet peers. Allowing the tailnet
+      # CGNAT range (100.64.0.0/10) lets responses flow back without turning the
+      # killswitch off (do NOT set FIREWALL=off). Append your LAN if needed, e.g.
+      # FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10,192.168.1.0/24
+      FIREWALL_OUTBOUND_SUBNETS: ${FIREWALL_OUTBOUND_SUBNETS:-100.64.0.0/10}
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Optional custom OpenVPN configs (set VPN_SERVICE_PROVIDER=custom and
+      # OPENVPN_CUSTOM_CONFIG=/gluetun/custom/<file>.ovpn).
+      - ./vpn-files:/gluetun/custom:ro
+    # gluetun ships its own HEALTHCHECK; rely on it rather than redefining one.
+    restart: unless-stopped
+
+  tailscale:
+    # Move tailscale into gluetun's netns. These keys are incompatible with
+    # `network_mode: service:` so they are reset from the base definition; the
+    # forwarding sysctls now belong to gluetun above.
+    network_mode: service:gluetun
+    hostname: !reset null
+    sysctls: !reset null
+    depends_on:
+      gluetun:
+        condition: service_healthy
