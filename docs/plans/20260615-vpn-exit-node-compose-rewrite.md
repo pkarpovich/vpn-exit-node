@@ -40,9 +40,11 @@ devices.
   - exit node works in kernel mode (`TS_USERSPACE=false` + `NET_ADMIN` +
     `/dev/net/tun` + `ip_forward=1`); kernel chosen for streaming bandwidth.
   - gluetun + tailscale exit node is a known pattern via
-    `network_mode: service:gluetun`, with a return-traffic "black hole" gotcha
-    that must be solved at the gluetun firewall level (without disabling the
-    killswitch).
+    `network_mode: service:gluetun`, with a return-traffic "black hole" gotcha.
+    It is a ROUTING problem (gluetun's low-numbered `ip rule`s push the tailnet
+    range out the tunnel ahead of Tailscale's priority-5270/table-52 rule), not a
+    firewall one - solved by a `route-fix` sidecar that injects a higher-priority
+    rule to table 52, never by disabling the killswitch.
   - tsnet (embedded Tailscale in Go) cannot be an exit node - so exit-node
     functionality must come from the official tailscaled image, not custom code.
   - native multi-hop / chained exit nodes are NOT supported by Tailscale
@@ -126,9 +128,14 @@ devices.
       (uses Compose `!reset` to drop `hostname`/`sysctls`, which are mutually
       exclusive with `network_mode: service:`; the IP-forwarding sysctls move to
       gluetun, the netns owner)
-- [x] configure gluetun firewall to allow tailnet return traffic WITHOUT
-      disabling the killswitch (`FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10` keeps
-      `FIREWALL=on`; documented inline in the override)
+- [x] keep tailnet return traffic working WITHOUT disabling the killswitch
+      (`FIREWALL=on`). The fix is routing, not firewall: a `route-fix` sidecar in
+      gluetun's netns injects `ip rule add to 100.64.0.0/10 table 52 priority 90`
+      (and the IPv6 tailnet range) so Tailscale's table wins over gluetun's
+      priority-99/default rules. `FIREWALL_OUTBOUND_SUBNETS` defaults empty and is
+      reserved for LAN subnets only - putting the tailnet range there is an
+      OUTPUT-chain allowance that misses the FORWARD-chain return traffic and adds
+      the very priority-99 route the sidecar must override.
 - [x] `restart: unless-stopped` + rely on gluetun's built-in healthcheck (no
       custom healthcheck defined for gluetun; `tailscale` waits on
       `condition: service_healthy`)
@@ -186,7 +193,8 @@ devices.
 - **Netns topology**: base mode keeps `tailscale` in its own netns; `socks5`
   joins it via `network_mode: service:tailscale`. VPN mode introduces `gluetun`
   as the netns owner; `tailscale` joins gluetun, and `socks5` (if used) joins
-  the shared namespace transitively.
+  the shared namespace transitively. A `route-fix` sidecar also joins gluetun's
+  netns purely to inject the tailnet return-path `ip rule` (see Task 4).
 - **Why bind SOCKS to `100.x`**: in the shared netns the interface set includes
   the box's public interface; binding to the Tailscale address is what makes the
   proxy reachable only from the tailnet.

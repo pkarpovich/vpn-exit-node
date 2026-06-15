@@ -102,7 +102,8 @@ make up-vpn
 Adds the `gluetun` service from `compose.vpn.yml`. gluetun becomes the network-
 namespace owner and `tailscale` joins it (`network_mode: service:gluetun`), so
 all exit-node traffic leaves through the VPN tunnel. gluetun's killswitch stays
-on (see [VPN killswitch](#vpn-killswitch-mode-3)).
+on, and a `route-fix` sidecar repairs the tailnet return path (see
+[VPN killswitch](#vpn-killswitch-mode-3)).
 
 ## Environment reference
 
@@ -113,9 +114,9 @@ gitignored - never commit real keys or VPN credentials.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TS_AUTHKEY` | _(required)_ | Tailscale auth key. Prefer a reusable, non-expiring key (or OAuth client) and tag it `tag:exit-node`. |
+| `TS_AUTHKEY` | _(required)_ | Tailscale auth key. Prefer a reusable key (or OAuth client) tagged `tag:exit-node`; see [Auth keys](#auth-keys--key-expiry). |
 | `TS_HOSTNAME` | `vpn-exit-node` | Node name on the tailnet (also the Docker container name). Unique per box. |
-| `TS_EXTRA_ARGS` | `--advertise-exit-node` | Extra `tailscale up` args. Keep `--advertise-exit-node` for exit-node modes. |
+| `TS_EXTRA_ARGS` | `--advertise-exit-node` | Extra `tailscale up` args. Keep `--advertise-exit-node` for exit-node modes; add `--advertise-tags=tag:exit-node` when registering with an OAuth client (required - see [Auth keys](#auth-keys--key-expiry)). |
 
 ### SOCKS5 (mode 1, profile `socks`)
 
@@ -139,7 +140,7 @@ gitignored - never commit real keys or VPN credentials.
 | `OPENVPN_CUSTOM_CONFIG` | _(empty)_ | For `VPN_SERVICE_PROVIDER=custom`: path to a `.ovpn` mounted under `./vpn-files`, e.g. `/gluetun/custom/myconfig.ovpn`. |
 | `WIREGUARD_PRIVATE_KEY` | _(empty)_ | WireGuard private key (`VPN_TYPE=wireguard`). |
 | `WIREGUARD_ADDRESSES` | _(empty)_ | WireGuard interface addresses (`VPN_TYPE=wireguard`). |
-| `FIREWALL_OUTBOUND_SUBNETS` | `100.64.0.0/10` | Killswitch return-traffic allowance. Keep the tailnet CGNAT range; append your LAN if needed (comma-separated). Do **not** set `FIREWALL=off`. |
+| `FIREWALL_OUTBOUND_SUBNETS` | _(empty)_ | LAN subnets the box may reach **bypassing** the VPN (comma-separated), e.g. `192.168.1.0/24`. Do **not** put the tailnet range here - it breaks the return path (see [VPN killswitch](#vpn-killswitch-mode-3)). Never set `FIREWALL=off`. |
 | `TZ` | `UTC` | Container timezone (affects gluetun log timestamps). |
 
 ## Security posture
@@ -164,30 +165,72 @@ namespace and never needs an open host port.
 
 gluetun ships a killswitch (`FIREWALL=on` by default) that drops all traffic not
 going through the tunnel - so a tunnel drop cannot leak your real IP. Leave it
-on.
+on; **never** set `FIREWALL=off`.
 
-The catch: with the killswitch on, gluetun's firewall also drops the *return*
-traffic to tailnet peers, and the exit node black-holes. The fix is **not** to
-disable the killswitch but to allow the tailnet CGNAT range outbound:
+### Return-path routing (the `route-fix` sidecar)
 
-```env
-FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10
+The exit-node return path is a **routing** problem, not a firewall one. In the
+shared namespace gluetun pushes the tailnet CGNAT range out the VPN tunnel via
+low-numbered `ip rule`s - its default-via-tunnel rule, plus a priority-99 rule
+for anything in `FIREWALL_OUTBOUND_SUBNETS`. All of these outrank Tailscale's own
+priority-5270 / table-52 rule, so replies to tailnet peers (destined to
+`100.64.0.0/10`) are sent out the wrong interface and black-hole.
+
+`compose.vpn.yml` therefore runs a tiny `route-fix` sidecar in gluetun's netns
+that reinstates a higher-priority (lower-numbered) rule sending the tailnet
+ranges to Tailscale's table 52, ahead of gluetun's rules:
+
+```sh
+ip rule add to 100.64.0.0/10 table 52 priority 90
+ip -6 rule add to fd7a:115c:a1e0::/48 table 52 priority 90
 ```
 
-This is the default in `.env.example` / `compose.vpn.yml`. Append your LAN if
-the box must also reach local hosts, e.g.
-`FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10,192.168.1.0/24`. Never set
-`FIREWALL=off`.
+It reuses the already-pulled `tailscale/tailscale` image (for `iproute2`), starts
+no `tailscaled`, and the rule is a no-op if table 52 has no matching route, so it
+cannot regress behavior. This still warrants a live check on first deploy, since
+the gluetun-vs-Tailscale `iptables`/`nftables` interaction cannot be exercised in
+CI (see [Manual verification per mode](#manual-verification-per-mode)).
+
+`FIREWALL_OUTBOUND_SUBNETS` is **not** part of this fix. It is an OUTPUT-chain
+allowance for LAN subnets you want the box to reach while bypassing the VPN (e.g.
+`192.168.1.0/24`); leave it empty otherwise. Do not put the tailnet range there -
+it does not cover the forwarded return traffic, and its priority-99 route is one
+of the rules the sidecar has to override.
 
 ## Auth keys / key expiry
 
-Exit nodes are long-lived. A standard auth key expires (default 90 days) and the
-node drops off the tailnet when it does. For these nodes either:
+Exit nodes are long-lived, and two separate expiries are in play:
 
-- **disable key expiry** for the node in the admin console (Machines -> the box
-  -> Disable key expiry), or
-- use an **OAuth client** instead of a static auth key, or
-- generate a **reusable, non-expiring** auth key.
+- **The auth key** that registers the node. All auth keys expire (90 days max -
+  reusable or not, they cannot be made non-expiring). `compose.yml` sets
+  `TS_AUTH_ONCE=true`, so with the persisted state volume the node authenticates
+  **once** and does not re-run `tailscale up` on restart. That sidesteps a known
+  failure where restarting with an expired key drops an already-authenticated
+  node ([tailscale#19501](https://github.com/tailscale/tailscale/issues/19501)).
+  Use a **reusable** key so a future re-auth (e.g. after recreating the state
+  volume) still works while the key is within its 90-day window.
+- **The node's key expiry**, which is what actually keeps the box on the tailnet
+  long-term. Either **disable key expiry** for the node in the admin console
+  (Machines -> the box -> Disable key expiry) or register with an **OAuth
+  client** (whose credentials do not expire), as below.
+
+### Registering with an OAuth client (non-expiring credentials)
+
+OAuth client secrets do not expire, so they are the durable option for a
+long-lived node or a fleet. Tailscale requires OAuth-registered nodes to be
+tagged, so the default reusable-key config is **not** enough on its own - you
+must pass the tag and opt out of the ephemeral default:
+
+1. Create an OAuth client with the **`auth_keys`** write scope and assign it
+   `tag:exit-node`
+   ([Tailscale OAuth registration](https://tailscale.com/docs/features/oauth-clients#register-new-nodes-using-oauth-credentials)).
+2. In `.env`, use the client secret as the auth key with `?ephemeral=false`
+   (without it the node registers as **ephemeral** and is removed from the
+   tailnet when the container stops), and advertise the tag:
+   ```env
+   TS_AUTHKEY=tskey-client-xxxxx?ephemeral=false
+   TS_EXTRA_ARGS=--advertise-exit-node --advertise-tags=tag:exit-node
+   ```
 
 Tag the key (e.g. `tag:exit-node`) so `autoApprovers` can approve the route
 automatically.
@@ -247,9 +290,14 @@ credentials). Run from another tailnet host unless noted.
   ```bash
   docker compose -f compose.yml -f compose.vpn.yml exec gluetun wget -qO- ipinfo.io
   ```
-  Expect the VPN country. Then via the exit node a consumer device should show
-  the VPN country. Finally stop the gluetun container and confirm there is **no
-  leak** (the killswitch holds and traffic stops).
+  Expect the VPN country. Then route a consumer device through the box as its
+  exit node and confirm it both reaches the internet (this exercises the tailnet
+  **return path** the `route-fix` sidecar repairs - see [VPN
+  killswitch](#vpn-killswitch-mode-3)) and shows the VPN country. If replies
+  black-hole, check `docker compose -f compose.yml -f compose.vpn.yml exec
+  gluetun ip rule` shows the priority-90 rule to table 52. Finally stop the
+  gluetun container and confirm there is **no leak** (the killswitch holds and
+  traffic stops).
 
 ## Non-goals
 

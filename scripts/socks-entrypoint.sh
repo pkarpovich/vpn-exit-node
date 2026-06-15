@@ -5,6 +5,12 @@ IFACE="${TS_IFACE:-tailscale0}"
 PORT="${SOCKS_PORT:-1080}"
 MAX_WAIT="${SOCKS_WAIT_RETRIES:-60}"
 
+if { [ -n "${SOCKS_USER:-}" ] && [ -z "${SOCKS_PASS:-}" ]; } \
+    || { [ -z "${SOCKS_USER:-}" ] && [ -n "${SOCKS_PASS:-}" ]; }; then
+    echo "socks-entrypoint: set both SOCKS_USER and SOCKS_PASS, or neither" >&2
+    exit 1
+fi
+
 echo "socks-entrypoint: waiting for tailnet IPv4 on ${IFACE}..."
 
 ts_ip=""

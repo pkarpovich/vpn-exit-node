@@ -9,6 +9,7 @@ services:
       TS_EXTRA_ARGS: ${TS_EXTRA_ARGS:---advertise-exit-node}
       TS_USERSPACE: "false"
       TS_STATE_DIR: /var/lib/tailscale
+      TS_AUTH_ONCE: "true"
     cap_add:
       - NET_ADMIN
     devices:
@@ -36,6 +37,8 @@ services:
       SOCKS_PORT: ${SOCKS_PORT:-1080}
       SOCKS_USER: ${SOCKS_USER:-}
       SOCKS_PASS: ${SOCKS_PASS:-}
+      TS_IFACE: ${TS_IFACE:-tailscale0}
+      SOCKS_WAIT_RETRIES: ${SOCKS_WAIT_RETRIES:-60}
     volumes:
       - ./scripts/socks-entrypoint.sh:/socks-entrypoint.sh:ro
     entrypoint: ["/bin/sh", "/socks-entrypoint.sh"]

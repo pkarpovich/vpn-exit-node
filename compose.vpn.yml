@@ -4,7 +4,8 @@
 #
 # gluetun becomes the network-namespace owner; tailscale joins it via
 # `network_mode: service:gluetun`, so all tailnet-forwarded traffic exits via the
-# VPN. gluetun's killswitch (FIREWALL, on by default) stays ON.
+# VPN. gluetun's killswitch (FIREWALL, on by default) stays ON. A small
+# `route-fix` sidecar repairs the exit-node return path (see its comment below).
 services:
   gluetun:
     image: qmcgaw/gluetun:latest
@@ -29,12 +30,16 @@ services:
       # WireGuard credentials (VPN_TYPE=wireguard)
       WIREGUARD_PRIVATE_KEY: ${WIREGUARD_PRIVATE_KEY:-}
       WIREGUARD_ADDRESSES: ${WIREGUARD_ADDRESSES:-}
-      # Killswitch stays ON. Without this the exit node black-holes: gluetun's
-      # firewall drops the return traffic to tailnet peers. Allowing the tailnet
-      # CGNAT range (100.64.0.0/10) lets responses flow back without turning the
-      # killswitch off (do NOT set FIREWALL=off). Append your LAN if needed, e.g.
-      # FIREWALL_OUTBOUND_SUBNETS=100.64.0.0/10,192.168.1.0/24
-      FIREWALL_OUTBOUND_SUBNETS: ${FIREWALL_OUTBOUND_SUBNETS:-100.64.0.0/10}
+      # Killswitch stays ON (never set FIREWALL=off). FIREWALL_OUTBOUND_SUBNETS is
+      # only for LAN subnets the box must reach while BYPASSING the VPN, e.g.
+      # FIREWALL_OUTBOUND_SUBNETS=192.168.1.0/24; leave it empty otherwise.
+      # Do NOT put the tailnet range (100.64.0.0/10) here: gluetun applies the
+      # setting as an OUTPUT-chain allowance (which does not cover the exit node's
+      # FORWARD-chain return traffic) PLUS an `ip rule` at priority 99 -> table 199
+      # via the physical interface, which outranks Tailscale's priority-5270/
+      # table-52 route and black-holes replies to tailnet peers. The exit-node
+      # return path is fixed in routing by the `route-fix` sidecar below.
+      FIREWALL_OUTBOUND_SUBNETS: ${FIREWALL_OUTBOUND_SUBNETS:-}
       TZ: ${TZ:-UTC}
     volumes:
       # Optional custom OpenVPN configs (set VPN_SERVICE_PROVIDER=custom and
@@ -53,3 +58,28 @@ services:
     depends_on:
       gluetun:
         condition: service_healthy
+
+  route-fix:
+    # Repairs the exit-node return path. gluetun routes the tailnet CGNAT range
+    # out the VPN via low-priority `ip rule`s (e.g. priority 99 for outbound
+    # subnets, plus its default-via-tunnel rule) that all outrank Tailscale's
+    # priority-5270 rule, so replies to tailnet peers never reach tailscale0.
+    # This sidecar reinstates a higher-priority (lower-numbered) rule pointing the
+    # tailnet ranges at Tailscale's table 52, ahead of gluetun's rules. It joins
+    # gluetun's netns and reuses the tailscale image (already pulled, ships
+    # iproute2); it starts no tailscaled, only the routing rule. The rule is a
+    # no-op when table 52 lacks a matching route, so it cannot regress behavior.
+    # The loop (scripts/route-fix.sh) only suppresses the benign "already exists"
+    # case and logs a clear WARNING if a rule genuinely fails to install.
+    image: tailscale/tailscale:latest
+    container_name: ${TS_HOSTNAME:-vpn-exit-node}-route-fix
+    network_mode: service:gluetun
+    cap_add:
+      - NET_ADMIN
+    depends_on:
+      tailscale:
+        condition: service_healthy
+    volumes:
+      - ./scripts/route-fix.sh:/route-fix.sh:ro
+    entrypoint: ["/bin/sh", "/route-fix.sh"]
+    restart: unless-stopped

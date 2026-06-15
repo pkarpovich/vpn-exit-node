@@ -3,10 +3,9 @@
 .env.*
 !.env.example
 
-# gluetun runtime / provider config that may contain credentials
-vpn-files/*.conf
-vpn-files/*.ovpn
-vpn-files/*.key
+# gluetun provider config and credentials (configs, certs, keys, auth files)
+vpn-files/*
+!vpn-files/.gitkeep
 
 # OS / editor cruft
 .DS_Store
