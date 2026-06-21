@@ -133,7 +133,7 @@ gitignored - never commit real keys or VPN credentials.
 |----------|---------|-------------|
 | `TS_AUTHKEY` | _(required)_ | Tailscale auth key. Prefer a reusable key (or OAuth client) tagged `tag:exit-node`; see [Auth keys](#auth-keys--key-expiry). |
 | `TS_HOSTNAME` | `vpn-exit-node` | Node name on the tailnet (also the Docker container name). Unique per box. |
-| `TS_EXTRA_ARGS` | `--advertise-exit-node` | Extra `tailscale up` args. Keep `--advertise-exit-node` for exit-node modes; add `--advertise-tags=tag:exit-node` when registering with an OAuth client (required - see [Auth keys](#auth-keys--key-expiry)). |
+| `TS_EXTRA_ARGS` | `--advertise-exit-node` | Extra `tailscale up` args. Keep `--advertise-exit-node` for exit-node modes; add `--advertise-tags=tag:exit-node` when registering with an OAuth client (required - see [Auth keys](#auth-keys--key-expiry). Also possible to use `--login-server=https...` for a self-hosted tailscale control-Server, like [headscale](https://github.com/juanfont/headscale)). |
 
 ### SOCKS5 (mode 1, profile `socks`)
 
